@@ -352,6 +352,18 @@ vector<pair<string, bool>> recursively_get_dir(string base_path, string ext_path
     return paths;
 }
 
+bool user_confirm() {
+    while(aptMainLoop()) {
+        hidScanInput();
+        u32 kDown = hidKeysDown();
+        if (kDown & KEY_A) {
+            return true;
+        } else if (kDown & KEY_B) {
+            return false;
+        }
+    }
+}
+
 bool WebDavClient::compareAndUpdate() {
     bool success = true;
 
@@ -386,22 +398,32 @@ bool WebDavClient::compareAndUpdate() {
             if (is_dir) {
                 // Local && Remote directory exists, we are fine
             } else if (local_mtime > remote_file.last_modified) {
-                // Upload local version
-                if (!this->push(local_real_path, path)) {
-                    printf(CONSOLE_RED "%s: local modified, upload failed.\n", path.c_str());
-                    printf(CONSOLE_RESET);
-                    success = false;
-                } else {
-                    printf("%s: local modified, uploaded.\n", path.c_str());
+                // Ask if we should do an upload
+                printf("\n%s", path.c_str());
+                printf(CONSOLE_YELLOW "Local version newer on above file.\n" CONSOLE_RESET);
+                printf(CONSOLE_YELLOW "Upload (A) or Not (B)?\n" CONSOLE_RESET);
+                if (user_confirm()) {
+                    // Upload local version
+                    printf("%s: local modified, uploading...\n\n", path.c_str());
+                    if (!this->push(local_real_path, path)) {
+                        printf(CONSOLE_RED "%s: local modified, upload failed.\n", path.c_str());
+                        printf(CONSOLE_RESET);
+                        success = false;
+                    }
                 }
             } else if (local_mtime < remote_file.last_modified) {
+                // Ask if we should do an upload
+                printf("\n%s", path.c_str());
+                printf(CONSOLE_YELLOW "Local version older on above file.\n" CONSOLE_RESET);
+                printf(CONSOLE_YELLOW "Download (A) or Not (B)?\n" CONSOLE_RESET);
                 // Pull remote version
-                if (!this->pull(local_real_path, remote_file.path)) {
-                    printf(CONSOLE_RED "%s: remote modified, download failed.\n", path.c_str());
-                    printf(CONSOLE_RESET);
-                    success = false;
-                } else {
-                    printf("%s: remote modified, downloaded.\n", remote_file.path.c_str());
+                if (user_confirm()) {
+                    printf("%s: remote modified, downloading...\n\n", remote_file.path.c_str());
+                    if (!this->pull(local_real_path, remote_file.path)) {
+                        printf(CONSOLE_RED "%s: remote modified, download failed.\n", path.c_str());
+                        printf(CONSOLE_RESET);
+                        success = false;
+                    }
                 }
             } else {
                 // Identical, don't do anything
@@ -411,12 +433,12 @@ bool WebDavClient::compareAndUpdate() {
             if (is_dir) {
                 this->mkcol(path, local_mtime);
             } else {
+                printf("%s: new local file, uploading...\n\n", path.c_str());
                 if (!this->push(local_real_path, path)) {
-                    printf(CONSOLE_RED "%s: new, upload failed.\n\n", path.c_str());
+                    printf(CONSOLE_RED "%s: upload failed.\n\n", path.c_str());
                     printf(CONSOLE_RESET);
                     success = false;
                 } else {
-                    printf("%s: new, uploaded.\n\n", path.c_str());
                 }
             }
         }
@@ -434,11 +456,12 @@ bool WebDavClient::compareAndUpdate() {
             }
         } else {
             // It's a file
+
+            printf("%s: new remote file, downloading...\n\n", remote_file.path.c_str());
             if (!this->pull(real_local_path, remote_file.path)) {
-                printf("can't pull remote file %s\n", remote_file.path.c_str());
+                printf("can't download remote file %s\n", remote_file.path.c_str());
                 success = false;
             } else {
-                printf("pulled remote file %s\n", remote_file.path.c_str());
             }
         }
     }
