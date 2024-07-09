@@ -21,6 +21,8 @@ public:
     ~WebDavClient();
     /// Configure this instance to use HTTP simple auth
     void set_basic_auth(std::string username, std::string password);
+    /// Use Nextcloud's WebDAV API, or use the RFC API
+    void set_nextcloud(bool nextcloud);
     /// Make a directory on the remote server
     bool mkcol(std::string web_path_rel, std::optional<u64> mtime);
     /// Push a file to the remote WebDAV collection
@@ -40,5 +42,6 @@ private:
     bool use_basic_auth;
     std::string username;
     std::string password;
+    bool nextcloud;
     void reset();
 };

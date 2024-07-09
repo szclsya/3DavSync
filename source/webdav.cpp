@@ -43,6 +43,10 @@ void WebDavClient::set_basic_auth(std::string username, std::string password) {
     this->reset();
 }
 
+void WebDavClient::set_nextcloud(bool nextcloud) {
+    this->nextcloud = nextcloud;
+}
+
 string formulate_actual_url(string &root, string &rel_path) {
     if (!rel_path.empty()) {
         string escaped_string = curl_easy_escape(NULL, rel_path.c_str(), 0);
@@ -215,7 +219,7 @@ optional<vector<FileEntry>> normalize_filelist(optional<vector<FileEntry>> i) {
     }
 }
 
-const char* query = R"(<?xml version="1.0"?>
+const char* query_nc = R"(<?xml version="1.0"?>
 <d:propfind  xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns" xmlns:nc="http://nextcloud.org/ns">
  <d:prop>
   <d:getlastmodified />
@@ -225,8 +229,26 @@ const char* query = R"(<?xml version="1.0"?>
  </d:prop>
 </d:propfind>)";
 
+const char* query_rfc = R"(<?xml version="1.0"?>
+<D:propfind  xmlns:D="DAV:">
+ <D:prop>
+  <D:getlastmodified />
+  <D:getcontentlength />
+  <D:resourcetype />
+ </D:prop>
+</D:propfind>)";
+
+const char* gen_prop(string prefix, string command) {
+    return prefix.append(command).c_str();
+}
+
 /// Read the timestamp from WebDAV server
 optional<vector<FileEntry>> WebDavClient::get_remote_files() {
+    string prefix = "d:";
+    if (this->nextcloud) {
+        prefix = "D:";
+    }
+
     // Use PROPFIND to fetch file metadata
     if (this->curl) {
         string response = "";
@@ -236,7 +258,11 @@ optional<vector<FileEntry>> WebDavClient::get_remote_files() {
         curl_easy_setopt(this->curl, CURLOPT_CUSTOMREQUEST, "PROPFIND");
         curl_easy_setopt(this->curl, CURLOPT_WRITEFUNCTION, curl_write_to_string);
         curl_easy_setopt(this->curl, CURLOPT_WRITEDATA, &response);
-        curl_easy_setopt(this->curl, CURLOPT_POSTFIELDS, query);
+        if (this->nextcloud) {
+            curl_easy_setopt(this->curl, CURLOPT_POSTFIELDS, query_nc);
+        } else {
+            curl_easy_setopt(this->curl, CURLOPT_POSTFIELDS, query_rfc);
+        }
         struct curl_slist *list = NULL;
         list = curl_slist_append(list, "Depth: infinity");
         curl_easy_setopt(this->curl, CURLOPT_HTTPHEADER, list);
@@ -265,8 +291,8 @@ optional<vector<FileEntry>> WebDavClient::get_remote_files() {
                 bool folder = false;
                 int size;
                 // Get file path
-                if (e->FirstChildElement("d:href")) {
-                    const char* text = e->FirstChildElement("d:href")->GetText();
+                if (e->FirstChildElement(gen_prop(prefix, "href"))) {
+                    const char* text = e->FirstChildElement(gen_prop(prefix, "href"))->GetText();
                     // The path here is escaped. Convert them back to unescaped form
                     char* decoded = curl_easy_unescape(this->curl, text, 0, NULL);
                     path = string(decoded);
@@ -274,24 +300,24 @@ optional<vector<FileEntry>> WebDavClient::get_remote_files() {
                     printf("malformed WebDAV response: missing d:href in PROPFIND\n");
                     return nullopt;
                 }
-                if (e->FirstChildElement("d:propstat")) {
-                    if (e->FirstChildElement("d:propstat")->FirstChildElement("d:prop")) {
-                        XMLElement* prop = e->FirstChildElement("d:propstat")->FirstChildElement("d:prop");
-                        if (prop->FirstChildElement("d:getlastmodified")) {
-                            string time_str = prop->FirstChildElement("d:getlastmodified")->GetText();
+                if (e->FirstChildElement(gen_prop(prefix, "propstat"))) {
+                    if (e->FirstChildElement(gen_prop(prefix, "propstat"))->FirstChildElement(gen_prop(prefix, "prop"))) {
+                        XMLElement* prop = e->FirstChildElement(gen_prop(prefix, "propstat"))->FirstChildElement(gen_prop(prefix, "prop"));
+                        if (prop->FirstChildElement(gen_prop(prefix, "getlastmodified"))) {
+                            string time_str = prop->FirstChildElement(gen_prop(prefix, "getlastmodified"))->GetText();
                             time = curl_getdate(time_str.c_str(), NULL);
                         } else {
-                            printf("malformed WebDAV response: missing d:getlastmodified in PROPFIND\n");
+                            printf("malformed WebDAV response: missing getlastmodified in PROPFIND\n");
                             return nullopt;
                         }
-                        if (prop->FirstChildElement("d:getcontentlength")) {
-                            string size_str = prop->FirstChildElement("d:getcontentlength")->GetText();
+                        if (prop->FirstChildElement(gen_prop(prefix, "getcontentlength"))) {
+                            string size_str = prop->FirstChildElement(gen_prop(prefix, "getcontentlength"))->GetText();
                             size = stoi(size_str);
                         } else {
                             size = 0;
                         }
-                        if (prop->FirstChildElement("d:resourcetype")
-                            && prop->FirstChildElement("d:resourcetype")->FirstChildElement("d:collection")) {
+                        if (prop->FirstChildElement(gen_prop(prefix, "resourcetype"))
+                            && prop->FirstChildElement(gen_prop(prefix, "resourcetype"))->FirstChildElement(gen_prop(prefix, "collection"))) {
                             folder = true;
                         }
                     } else {

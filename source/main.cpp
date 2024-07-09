@@ -76,6 +76,7 @@ int main(int argc, char* argv[]) {
             string local_path = reader.Get(buf, "LocalPath", "");
             string username = reader.Get(buf, "Username", "");
             string password = reader.Get(buf, "Password", "");
+            bool nextcloud = reader.GetBoolean(buf, "Nextcloud", false);
             if (url.size() == 0 || local_path.size() == 0) {
                 bad_config.push_back(buf);
             } else {
