@@ -16,8 +16,9 @@ LocalPath=/3ds/Checkpoint/saves
 # Specify credential here
 Username=REDACTED
 Password=REDACTED
+Nextcloud=true
 
-# Example: Sync roms
+# Example: Sync roms, generic WebDAV server
 [roms]
 Url=https://example.org/whatever/webdav
 LocalPath=/roms
