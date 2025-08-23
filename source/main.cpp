@@ -84,6 +84,7 @@ int main(int argc, char* argv[]) {
                 if (username.size() != 0) {
                     c->set_basic_auth(username, password);
                 }
+                c->set_nextcloud(nextcloud);
                 clients.push_back(make_pair(buf, c));
             }
         }

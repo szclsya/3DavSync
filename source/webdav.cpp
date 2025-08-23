@@ -244,9 +244,9 @@ const char* gen_prop(string prefix, string command) {
 
 /// Read the timestamp from WebDAV server
 optional<vector<FileEntry>> WebDavClient::get_remote_files() {
-    string prefix = "d:";
+    string prefix = "D:";
     if (this->nextcloud) {
-        prefix = "D:";
+        prefix = "d:";
     }
 
     // Use PROPFIND to fetch file metadata
@@ -297,7 +297,7 @@ optional<vector<FileEntry>> WebDavClient::get_remote_files() {
                     char* decoded = curl_easy_unescape(this->curl, text, 0, NULL);
                     path = string(decoded);
                 } else {
-                    printf("malformed WebDAV response: missing d:href in PROPFIND\n");
+                    printf("malformed WebDAV response: missing %s:href in PROPFIND\n", prefix.c_str());
                     return nullopt;
                 }
                 if (e->FirstChildElement(gen_prop(prefix, "propstat"))) {
